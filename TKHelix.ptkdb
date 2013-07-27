@@ -1,0 +1,73 @@
+$files = {
+           '_<TKHelix.pl' => [
+                               {
+                                 'expr' => undef,
+                                 'value' => '1',
+                                 'text' => '    GetHelixData;
+',
+                                 'fname' => 'TKHelix.pl',
+                                 'type' => 'user',
+                                 'line' => 570
+                               }
+                             ]
+         };
+$expr_list = [
+               {
+                 'expr' => '$Xval',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$Yval',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$MainWindowX',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$MainWindowY',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$count',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$_',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$CanvasXPixels',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$CanvasYPixels',
+                 'depth' => -1
+               },
+               {
+                 'expr' => 'Round($_+$Yval)',
+                 'depth' => -1
+               },
+               {
+                 'expr' => 'Round($_+$Xval)',
+                 'depth' => -1
+               },
+               {
+                 'expr' => 'scalar @Array',
+                 'depth' => -1
+               },
+               {
+                 'expr' => 'scalar @TempArray',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$Multiplier',
+                 'depth' => -1
+               },
+               {
+                 'expr' => '$MultiplierPercentage',
+                 'depth' => -1
+               }
+             ];
+$eval_saved_text = '';
+$main_win_geometry = '958x600+1406+178';
