@@ -1,748 +1,343 @@
-#!/bin/perl -w
-
-#Todo
-# Auto size and Size multiplier are not right
-# Repeat count does nothing
-# Fixed X and Y do nothing
-# Help does nothing
-# Auto speed does nothing
-#
-
 use strict;
 use warnings;
-
-#use diagnostics;
-use Carp;
-
-our $VERSION = 1.00;
 use UtilsDBK qw(:all);
-use POSIX;
 use Tk;
 use Tk::BrowseEntry;
 use Tk::Checkbutton;
-use Tk::Dialog;
-use Tk::DialogBox;
-use Tk::LabEntry;
 use Tk::Pane;
-use Tk::JPEG;
-use Tk::PNG;
-use Image::Magick;
-use feature ':5.14';    # loads all features available in perl 5.14
-use Time::HiRes qw/usleep/;
-use Readonly;
+use feature ':5.10'; # loads all features available in perl 5.10
 
-sub GetDisplayParameters;
-sub BackgroundColorSet;
-sub BackgroundRandomColorSet;
-sub DrawButton;
-sub ClearButton;
-sub GetPoint;
-sub GetHelixData;
-sub DrawHelix;
+
+sub Log($);
 sub ConfigTools;
 sub RandColor;
-sub Round;
+sub Round($);
+sub GetPoint($);
+sub GetHelixData;
+sub DrawHelix;
+sub PSOut;
 sub Help;
-sub PostScriptOut;
-sub Log;
-sub DebugMode;
-sub PhotoOnCanvas;
 
-Readonly my $MAXLINEWIDTH => scalar 25;
+use constant MAXLINEWIDTH => scalar 25;
 
-my $PerlNamePath = ( ( split( m/[\\]/x, $0 ) )[0] );
-my $PerlName     = ( ( split( m/\\\\/x, $PerlNamePath ) )[-1] );
-my $LogFileName  = $PerlName . '.log';
+my $PerlNamePath = ((split('\.',$0))[0]);
+my $PerlName = ((split('\\\\',$PerlNamePath))[-1]);
+my $LogFileName = $PerlName . '.log';
 
-my @DirectionChoices = qw(N NW W SW S SE E NE);
-my $Direction        = 'N';
+my $MaxMultiplier = 350;
+my $Multiplier = $MaxMultiplier;
 
 my $XOffset = 425;
-my $XStep   = 10;
+my $XStep = 10;
 my $YOffset = 250;
-my $YStep   = 10;
+my $YStep = 10;
 
-my $Degrees             = 5;
-my $ForegroundColor     = 'White~#FFFFFF';
-my $BackgroundColor     = 'Black~#000000';
-my $AutoBackgroundColor = FALSE;
-my $AutoDirection       = TRUE;
+my $Degrees = 5;
+my $FGColor = 'White';
+my $BGColor = 'Black';
+my $FixedSize = FALSE;
+my $FixedXLocation = FALSE;
+my $FixedYLocation = FALSE;
+my $AutoFGColor = FALSE;
+my $VaryFGColor = FALSE;
+my $AutoBGColor = FALSE;
+my $AutoDegrees = FALSE;
+my $AutoLineWidth  = FALSE;
+my $AutoClear = TRUE;
+my $AutoRepeat = 0;
+my $LineWidth = 1;
+my $mwX = 0;
+my $mwY = 0;
+my $Horz_scaleMin = 0;
+my $Horz_scaleMax = 100;
+my $Vert_scaleMin = 0;
+my $Vert_scaleMax = 100;
+my $MWGeometry;
+my $canvas;
 
-my $AutoSize         = TRUE;
-my $FixedXLocation   = FALSE;
-my $FixedYLocation   = FALSE;
-my $AutoFGColor      = FALSE;
-my $VaryFGColor      = FALSE;
-my $AutoBGColor      = FALSE;
-my $AutoDegrees      = TRUE;
-my $AutoDrawSpeed    = FALSE;
-my $AutoLineWidth    = FALSE;
-my $AutoClear        = TRUE;
-my $AutoHelixLoops   = FALSE;
-my $AutoHelixPerInch = FALSE;
-my $AutoRepeat       = 0;
-my $LineWidth        = 1;
-my $MainWindowX      = 0;
-my $MainWindowY      = 0;
+my @BGColorChoices = ();
+my @FGColorChoices = ();
+my @ColorList = ();
+my @Array = ();
 
-my $CanvasXPixels        = 0;
-my $CanvasYPixels        = 0;
-my $CanvasTotalPixels    = 0;
-my $Multiplier           = 0;
-my $MultiplierPercentage = 50;
-my $Photo                = FALSE;
-my $Debug                = FALSE;
-my $DrawSpeed            = 1;
-my $HelixLoops           = 10;
-my $HelixPerInch         = 5;
-
-Readonly my $MinimumDrawSpeed    => scalar 0;
-Readonly my $MaximumDrawSpeed    => scalar 200;
-Readonly my $MinimumHelixLoops   => scalar 5;
-Readonly my $MaximumHelixLoops   => scalar 50;
-Readonly my $MinimumHelixPerInch => scalar 1;
-Readonly my $MaximumHelixPerInch => scalar 50;
-
-my $MainWindowGeometry;
-my $Canvas;
-
-my @BackgroundColorChoices = ();
-my @ForegroundColorChoices = ();
-my @ColorList              = ();
-my @Array                  = ();
-
-my $MainWindow = MainWindow->new( '-title' => $PerlName );
-
-$MainWindow->minsize( 400, 400 );
-$MainWindow->maxsize( $MainWindow->screenwidth, $MainWindow->screenheight );
-$MainWindow->geometry('1050x725+1400+375');
-$MainWindow->resizable( TRUE, TRUE );
-$MainWindow->bind(
+my $mw = MainWindow->new( '-title' => $PerlName );
+# $mw->minsize( 450, 300 );
+# $mw->maxsize( 900, 600 );
+$mw->geometry('1200x750+0+0');
+$mw->resizable( TRUE, TRUE );
+$mw->bind(
     '<Configure>',
     [
         sub {
-
             if ( $_[0] =~ /MainWindow/i ) {
-                $MainWindowGeometry = $MainWindow->geometry();
-                $MainWindow->title("$PerlName $MainWindowGeometry<<<");
-                ( $MainWindowX, my $y ) = split( /x/x, $MainWindowGeometry );
-                ($MainWindowY) = split( /\+/x, $y );
+                $MWGeometry = $mw->geometry();
+                $mw->title( "$PerlName $MWGeometry<<<" );
+                ($mwX , my $y) = split(/x/,$MWGeometry);
+                ($mwY) = split(/\+/,$y);
                 ConfigTools;
             }
           }
     ]
 );
-
 #---------------------------------------------------------------------------
-my $Menu_frame =
-  $MainWindow->Scrolled( qw/Pane -scrollbars osw/, -width => 300 )
-  ->pack( -side => 'left', -fill => 'y', -expand => '0' );
-my $Canvas_frame = $MainWindow->Frame()->pack( -side => 'left', -fill => 'both', -expand => '1' );
+# my $pane = $mw->Scrolled(qw/Pane -scrollbars osw/)->pack;
+# my $Menu_frame = $mw->Frame( ) ->pack( -side => 'left' );
+my $Menu_frame = $mw->Scrolled(qw/Pane -scrollbars osw/, -width => 250)->pack( -side => 'left' , -fill => 'y', -expand => '0' );
+my $Canvas_frame = $mw->Frame( ) ->pack( -side => 'left', -fill => 'both', -expand => '1' );
 
-my $One_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
+my $One_frame = $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
   ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Two_frame =
-  $Menu_frame->Frame( -borderwidth => $MinimumHelixLoops, -relief => 'groove' )
+my $Two_frame = $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
   ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Three_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
+my $Three_frame = $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
   ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Four_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
+my $Four_frame = $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
   ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Five_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
+my $Five_frame = $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
   ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Six_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
-  ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Seven_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
-  ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Eight_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
-  ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Nine_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
-  ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Ten_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
-  ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Eleven_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
-  ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Twelve_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
-  ->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $Thirteen_frame =
-  $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
+my $Six_frame = $Menu_frame->Frame( -borderwidth => 1, -relief => 'groove' )
   ->pack( -side => 'top', -fill => 'both', -expand => '1' );
 
-my $B1_frame = $One_frame->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
-$B1_frame->Button( -text => 'Draw', -command => \&DrawButton )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
-$B1_frame->Button( -text => 'Clear', -command => \&ClearButton )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
-$B1_frame->Checkbutton( -text => 'Debug', -variable => \$Debug )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
+my $B1_frame = $One_frame ->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
+$B1_frame->Button( -text => 'Draw', -command => \&Draw_bttn) ->pack(  );
+$B1_frame->Button( -text => 'Clear', -command => \&Clear_bttn) ->pack( );
 
-my $B2_frame = $One_frame->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
-$B2_frame->Button(
-    -text    => 'Zoom 0.9',
-    -command => sub { $Canvas->scale( 'all', $XOffset, $YOffset, 0.9, 0.9 ) }
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-$B2_frame->Button(
-    -text    => 'Zoom 1.1',
-    -command => sub { $Canvas->scale( 'all', $XOffset, $YOffset, 1.1, 1.1 ) }
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
+my $B2_frame = $One_frame ->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
+$B2_frame->Button(-text => 'Zoom 0.9', -command => sub {$canvas->scale('all',$XOffset,$YOffset,0.9,0.9)}) ->pack( -side => 'left', -fill => 'both', -expand => '1' );
+$B2_frame->Button(-text => 'Zoom 1.1', -command => sub {$canvas->scale('all',$XOffset,$YOffset,1.1,1.1)}) ->pack( -side => 'left', -fill => 'both', -expand => '1' );
 
-my $B3_frame = $One_frame->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
-$B3_frame->Button(
-    -text    => 'Up',
-    -command => sub {
-        $Canvas->addtag( 'everything', 'all' );
-        $Canvas->move( 'all', 0, $MainWindowY / 20 * -1 );
-    }
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
+my $B3_frame = $One_frame ->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
+$B3_frame->Button(-text => 'Up', -command => sub {$canvas->addtag('everything', 'all');
+  $canvas->move('all', 0, $mwY / 20 * -1)}) ->pack( -side => 'left', -fill => 'both', -expand => '1' );
+$B3_frame->Button(-text => 'Down', -command => sub {$canvas->addtag('everything', 'all');
+  $canvas->move('all', 0,  $mwY / 20)}) ->pack( -side => 'left', -fill => 'both', -expand => '1' );
 
-$B3_frame->Button(
-    -text    => 'Down',
-    -command => sub {
-        $Canvas->addtag( 'everything', 'all' );
-        $Canvas->move( 'all', 0, $MainWindowY / 20 );
-    }
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
+my $B4_frame = $One_frame ->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
+$B3_frame->Button(-text => 'Left', -command => sub {$canvas->addtag('everything', 'all');
+  $canvas->move('all',  $mwX / 20 * -1, 0)}) ->pack( -side => 'left', -fill => 'both', -expand => '1' );
 
-$B3_frame->Button(
-    -text    => 'Left',
-    -command => sub {
-        $Canvas->addtag( 'everything', 'all' );
-        $Canvas->move( 'all', $MainWindowX / 20 * -1, 0 );
-    }
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
+my $B5_frame = $One_frame ->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
+$B5_frame->Button( -text => 'PS out', -command => \&PSOut)
+    ->pack( -side => 'left', -fill => 'both', -expand => '1' );
+$B5_frame->Button( -text => 'Help', -command =>  \&Help)
+    ->pack( -side => 'left', -fill => 'both', -expand => '1' );
 
-$B3_frame->Button(
-    -text    => 'Right',
-    -command => sub {
-        $Canvas->addtag( 'everything', 'all' );
-        $Canvas->move( 'all', $MainWindowX / 20, 0 );
-    }
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
+$One_frame->Checkbutton(-text => 'Auto clear', -variable => \$AutoClear) ->pack( -side => 'top', -fill => 'both', -expand => '1' );
 
-my $B4_frame = $One_frame->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
-my $B5_frame = $One_frame->Frame()->pack( -side => 'top', -fill => 'both', -expand => '1' );
-$B5_frame->Button( -text => 'PS out', -command => \&PSOut )
-  ->pack( -side => 'left',, -expand => '1', -fill => 'x' );
-$B5_frame->Button( -text => 'Help', -command => \&Help )
-  ->pack( -side => 'left',, -expand => '1', -fill => 'x' );
+my $Repeat_scale = $One_frame->Scale(-orient=>'horizontal', -variable => \$AutoRepeat, -width => 8, -label => 'Repeat count') ->pack( -side => 'top' );
+$Repeat_scale -> configure( -from => 0, -to => 10);
 
-my $Repeat_scale = $Two_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$AutoRepeat,
-    -width    => 10,
-    -label    => 'Repeat count'
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-$Repeat_scale->configure( -from => 0, -to => 10 );
-
-$Two_frame->Checkbutton( -text => 'Auto clear', -variable => \$AutoClear )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-my $Multiplier_Scale = $Three_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$MultiplierPercentage,
-    -width    => 8,
-    -label    => 'Size multiplier %',
-    -from     => 5,
-    -to       => 100
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-$Three_frame->Checkbutton( -text => 'Auto size', -variable => \$AutoSize )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-$Four_frame->Checkbutton(
-    -text     => 'Fixed X location',
-    -variable => \$FixedXLocation
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-$Four_frame->Checkbutton(
-    -text     => 'Fixed Y location',
-    -variable => \$FixedYLocation
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-my $LW_scale = $Five_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$LineWidth,
-    -width    => 8,
-    -label    => 'Line width',
-    -from     => 1,
-    -to       => $MAXLINEWIDTH
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-$Five_frame->Checkbutton(
-    -text     => 'Auto line width',
-    -variable => \$AutoLineWidth
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-my $DrawSpeed_scale = $Six_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$DrawSpeed,
-    -width    => 8,
-    -label    => 'Draw speed',
-    -from     => $MinimumDrawSpeed,
-    -to       => $MaximumDrawSpeed
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-$Six_frame->Checkbutton( -text => 'Auto draw speed', -variable => \$AutoDrawSpeed )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-my $HelixLoops_scale = $Seven_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$HelixLoops,
-    -width    => 8,
-    -label    => 'Helix loops',
-    -from     => $MinimumHelixLoops,
-    -to       => $MaximumHelixLoops
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-$Seven_frame->Checkbutton( -text => 'Auto helix Loops', -variable => \$AutoHelixLoops )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-my $HelixPerInch_scale = $Eight_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$HelixPerInch,
-    -width    => 8,
-    -label    => 'Helix per inch',
-    -from     => $MinimumHelixPerInch,
-    -to       => $MaximumHelixPerInch
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-$Eight_frame->Checkbutton( -text => 'Auto helix per inch', -variable => \$AutoHelixPerInch )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-my $HorizontalScale = $Nine_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$XOffset,
-    -width    => 8,
-    -label    => 'XOffset %',
-    -from     => 0,
-    -to       => 100
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-my $VerticalScale = $Nine_frame->Scale(
-    -orient   => 'horizontal',
-    -variable => \$YOffset,
-    -width    => 8,
-    -label    => 'YOffset %',
-    -from     => 0,
-    -to       => 100
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
+my $Mult_scale = $Three_frame->Scale(-orient=>'horizontal', -variable => \$Multiplier, -width => 8, -label => 'Size multiplier') ->pack( -side => 'top' );
+$Three_frame->Checkbutton(-text => 'Fixed size', -variable => \$FixedSize) ->pack( -side => 'top' );
+my $Horz_scale = $Three_frame->Scale(-orient=>'horizontal', -variable => \$XOffset, -width => 8, -label => 'XOffset') ->pack( -side => 'top' );
+my $Vert_scale = $Three_frame->Scale(-orient=>'horizontal', -variable => \$YOffset, -width => 8, -label => 'YOffset') ->pack( -side => 'top' );
+$Three_frame->Checkbutton(-text => 'Fixed X location', -variable => \$FixedXLocation) ->pack( -side => 'top' );
+$Three_frame->Checkbutton(-text => 'Fixed Y location', -variable => \$FixedYLocation) ->pack( -side => 'top' );
 my @DegreesChoices = qw/1 2 3 4 5 6 8 9 10 12 15 18 20 24 30 36 40 45 60 72 90 120 180/;
-$Ten_frame->BrowseEntry(
-    -label    => "Degrees",
-    -choices  => \@DegreesChoices,
-    -variable => \$Degrees,
-    -width    => 5
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-$Ten_frame->Checkbutton( -text => 'Auto Degrees', -variable => \$AutoDegrees )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
+$Four_frame->BrowseEntry(-label => "Degrees", -choices => \@DegreesChoices, -variable => \$Degrees, -width => 5)->pack( -side => 'top' );
+$Four_frame->Checkbutton(-text => 'Auto Degrees', -variable => \$AutoDegrees) ->pack( -side => 'top' );
 
-$Eleven_frame->BrowseEntry(
-    -label    => "Direction",
-    -choices  => \@DirectionChoices,
-    -variable => \$Direction,
-    -width    => 5
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
+my $LW_scale = $Four_frame->Scale(-orient=>'horizontal', -variable => \$LineWidth, -width => 8, -label => 'Line width',-from => 1, -to => MAXLINEWIDTH ) ->pack( -side => 'top' );
 
-$Eleven_frame->Checkbutton( -text => 'Auto direction', -variable => \$AutoDirection )
-  ->pack( -side => 'left', -expand => '1', -fill => 'x' );
+$Four_frame->Checkbutton(-text => 'Auto line width', -variable => \$AutoLineWidth ) ->pack( -side => 'top' );
 
-# number of loops helix loops
-# my $Step = 10; #Helixs per inch
-
-while ( my $_ = <DATA> ) { push @ColorList, Trim($_) }
-
-push @ForegroundColorChoices, @ColorList;
-$Twelve_frame->BrowseEntry(
-    -label     => "FGC",
-    -choices   => \@ForegroundColorChoices,
-    -variable  => \$ForegroundColor,
-    -width     => 15,
-    -browsecmd => \&FGColorSet,
-    -listcmd   => \&FGColorSet,
-    -command   => \&FGColorSet
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-$Twelve_frame->Checkbutton(
-    -text     => 'Auto',
-    -variable => \$AutoFGColor
-)->pack( -side => 'left', -expand => '1', -fill => 'x' );
-
-$Twelve_frame->Checkbutton(
-    -text     => 'Vary',
-    -variable => \$VaryFGColor
-)->pack( -side => 'top' );
-
+foreach $_ (<DATA>) {push @ColorList, Trim($_)};
+push @FGColorChoices, @ColorList;
+$Five_frame->BrowseEntry(-label => "FGC", -choices => \@FGColorChoices, -variable => \$FGColor, -width => 20,
+    -browsecmd => \&FGColorSet, -listcmd => \&FGColorSet, -command => \&FGColorSet) -> pack( -side => 'top' );
+$Five_frame->Checkbutton(-text => 'Auto FG color', -variable => \$AutoFGColor) ->pack( -side => 'top' );
+$Five_frame->Checkbutton(-text => 'Vary FG color', -variable => \$VaryFGColor) ->pack( -side => 'top' );
 sub FGColorSet {
-    my $t = ( split( '~', $ForegroundColor ) )[1];
-    unless ($t) { $t = $ForegroundColor }
-    $Canvas->itemconfigure( 'all', -fill => $t );
-    return;
+    my $t = (split('~',$FGColor))[1];
+    unless ($t) {$t = $FGColor};
+    $canvas->itemconfigure('all', -fill => $t);
 }
 
-push @BackgroundColorChoices, @ColorList;
-$Thirteen_frame->BrowseEntry(
-    -label     => "BGC",
-    -choices   => \@BackgroundColorChoices,
-    -variable  => \$BackgroundColor,
-    -width     => 15,
-    -browsecmd => \&BGColorSet,
-    -listcmd   => \&BGColorSet,
-    -command   => \&BGColorSet
-)->pack( -side => 'left' );
+push @BGColorChoices, @ColorList;
+$Five_frame->BrowseEntry(-label => "BGC", -choices => \@BGColorChoices, -variable => \$BGColor, -width => 20,
+   -browsecmd => \&BGColorSet, -listcmd => \&BGColorSet, -command => \&BGColorSet) -> pack( -side => 'top' );
 
 sub BGColorSet {
-    my $t = ( split( '~', $BackgroundColor ) )[1];
-    unless ($t) { $t = $BackgroundColor }
-    $Canvas->configure( -background => $t );
-    return;
+    my $t = (split('~',$BGColor))[1];
+    unless ($t) {$t = $BGColor};
+    $canvas-> configure(-background => $t);
 }
 
-$Thirteen_frame->Checkbutton(
-    -text     => 'Auto',
-    -variable => \$AutoBGColor
-)->pack( -side => 'left' );
-@ColorList = ();    #Free the memory
+$Five_frame->Checkbutton(-text => 'Auto BG color', -variable => \$AutoBGColor) ->pack( -side => 'top' );
+@ColorList = (); #Free the memory
 
-$Canvas =
-  $Canvas_frame->Canvas( -cursor => "crosshair", -background => 'black' )
-  ->pack( -fill => 'both',, -expand => '1', -fill => 'both' );
+$canvas = $Canvas_frame->Canvas( -cursor=>"crosshair",-background => $BGColor)->pack(-fill => 'both', -expand => '1' );
 
 #---------------------------------------------------------------------------
-srand( time ^ $$ );
+srand(time ^ $$);
 
-#Erase the log file so we start fresh
-Log('ERASE');
-
-#If in debugber set debug mode
-if ( defined &DB::DB ) {
-    $Debug = TRUE;
-}
+open LOG, ">" . $LogFileName;
+close LOG;
 
 sub BGColor {
-    $BackgroundColor = @BackgroundColorChoices[ int( rand(@BackgroundColorChoices) ) ];
-    $Canvas->configure( -background => ( split( '~', $BackgroundColor ) )[1] );
-    return;
+    $BGColor = @BGColorChoices[int(rand(@BGColorChoices))];
+    $canvas-> configure(-background => (split('~',$BGColor))[1]);
 }
-
 sub FGColor {
-    $ForegroundColor = @ForegroundColorChoices[ int( rand(@ForegroundColorChoices) ) ];
-    $Canvas->itemconfigure( 'all', -fill => ( split( '~', $ForegroundColor ) )[1] );
-    return;
+    $FGColor = @FGColorChoices[int(rand(@FGColorChoices))];
+    $canvas->itemconfigure('all', -fill => (split('~',$FGColor))[1]);
 }
-$Canvas->Tk::bind( "<Button-1>", [ \&FGColor ] );
-$Canvas->Tk::bind( "<Button-3>", [ \&BGColor ] );
+$canvas->Tk::bind("<Button-1>", [ \&FGColor]);
+$canvas->Tk::bind("<Button-3>", [ \&BGColor]);
 
 Log("DBGVIEWCLEAR");
 Log("PerlNamePath::$PerlNamePath\nPerlName::$PerlName\nLogFileName::$LogFileName");
 
 MainLoop;
-
 #---------------------------------------------------------------------------
-#This gets the current display setting.
-#It then calculates all of the required varibles needed to run.
-sub GetDisplayParameters {
-    $CanvasXPixels     = $Canvas->Width;                     #Canvas width in pixels
-    $CanvasYPixels     = $Canvas->Height;                    #Canvas height in pixels
-    $CanvasTotalPixels = $CanvasXPixels * $CanvasYPixels;    #Canvas total pixels
-    return;
+sub Log($) {
+    open LOG, ">>" . $LogFileName;
+    say LOG $_[0];
+    close LOG;
 }
-
-#---------------------------------------------------------------------------
-sub Log {
-    my ($String) = @_;
-    my $LOG;
-    if ( $String eq 'ERASE' ) {
-        open( $LOG, '>', $LogFileName ) or carp 'Unable to open log file for write >';
-    } else {
-        open( $LOG, '>>', $LogFileName ) or carp 'Unable to open log file append >>';
-    }
-    say $LOG $String;
-    close $LOG;
-    return;
-}
-
 #---------------------------------------------------------------------------
 sub ConfigTools {
+    if ($XOffset < $YOffset)
+        {$MaxMultiplier = int($mwX / 3)}
+    else
+        {$MaxMultiplier = int($mwY / 3)}
 
-    return;
+    unless ($FixedSize) {$Multiplier = int($MaxMultiplier / 2)};
+
+    $Mult_scale -> configure( -from => 0, -to => $MaxMultiplier);
+
+    $Horz_scaleMin = 200;
+    $Horz_scaleMax = $mwX - 400;
+    $Horz_scale -> configure( -from => $Horz_scaleMin, -to => $Horz_scaleMax);
+
+    $Vert_scaleMin = 200;
+    $Vert_scaleMax = $mwY - 200;
+    $Vert_scale -> configure( -from => $Vert_scaleMin, -to => $Vert_scaleMax);
 }
-
 #---------------------------------------------------------------------------
 sub RandColor {
-    my $Color = sprintf( "#%06X", ( ( ( rand(0xff) << 8 ) + rand(0xff) << 8 ) + rand(0xff) ) );
+    my $Color = sprintf("#%06X",(((rand(0xff) << 8) + rand(0xff) << 8) + rand(0xff)));
     return $Color;
 }
-
 #---------------------------------------------------------------------------
-sub Round {
-    my ($number) = shift;
-    return int( $number + .5 * ( $number <=> 0 ) );
+sub Round($) {
+    my($number) = shift;
+    return int($number + .5 * ($number <=> 0));
 }
-
 #---------------------------------------------------------------------------
-#A decimal value goes in, pairs of screen points come out
-sub GetPoints {
+sub GetPoint($)
+{
     my ($AngleD) = @_;
     my $AngleR = $AngleD / 180 * PI;
 
     my @Out;
-    $Out[0] = Round( ( cos($AngleR) * $Multiplier ) + $CanvasXPixels / 2 );
-    $Out[1] = Round( ( sin($AngleR) * $Multiplier ) + $CanvasYPixels / 2 );
-
-    #say __LINE__ . ':   ' . $Out[0] . '  ' . $Out[1] . '  ' . $Multiplier;
-
-    if ($Debug) {    #This plots the point created for test purposes
-        $Canvas->createRectangle( $Out[0], $Out[1], $Out[0] + 5, $Out[1] + 5, -fill => 'white' );
-        $MainWindow->update();
-    }
-
+    $Out[0] = Round((cos($AngleR)*$Multiplier)+$XOffset);  #X value
+    $Out[1] = Round((sin($AngleR)*$Multiplier)+$YOffset);  #Y value
     return @Out;
 }
-
 #---------------------------------------------------------------------------
-#This routine creates the data to draw the helix with
 sub GetHelixData {
-
-    #Generate an array of circle values in @TempArray
-    my @TempArray = ();
-    for ( my $X = 0 ; $X < 360 ; $X += $Degrees ) {
-        my @Out = GetPoints($X);
-        push( @TempArray, @Out );
+   #Generate an array of circle values
+   my @TArray = ();
+   for (my $X = 0 ; $X < 360; $X += $Degrees )
+    {
+        my @tmp = GetPoint($X);
+        push(@TArray ,@tmp);
     }
 
-    if ($Debug) {    #This plots the full circle constained in $TempArray
-        $Canvas->createLine(
-            @TempArray,
-            -fill  => 'Blue',
-            -width => '1',
-            -arrow => 'first'
-        );
-        $MainWindow->update();
+    my $x = @TArray;
+    Log "$x $mwY  $mwX   ??? DBK";
+
+    #Now pull the values and make them into a helix
+    my $Xval = 1;
+    my $Yval = 1;
+    while (($Xval > 0) and ($Xval < $mwX) and ($Yval > 0) and ($Yval < $mwY))
+    {
+         my $count = 0;
+         foreach $_ (@TArray)
+          {
+            # say sprintf " %d GetHelixData: %d %d --- %d %d" ,$count, $Xval, $mwX, $Yval, $mwY;
+            # if (($Xval < 0) or ($Xval > $mwX) or ($Yval < 0) or ($Yval > $mwY)) {say "***";last};
+             $count++;
+             $Xval += 0.2;
+             $Yval += 0.1;
+             if ($count % 2 == 0)
+                {push(@Array ,$_ + $Xval)}
+             else
+                {push(@Array ,$_ + $Yval)}
+           # Log sprintf "GetHelixData: %d  %d   %d" ,$count, $Xval, $Yval;
+          }
     }
 
-    #Now pull the values out of @TempArray and make them into a helix in @Array
-
-    if ($AutoHelixPerInch) {
-        $HelixPerInch =
-          int( rand( $MaximumHelixPerInch - $MinimumHelixPerInch ) ) + $MinimumHelixPerInch;
-    }
-
-    if ($AutoDirection) {
-        $Direction = @DirectionChoices[ int( rand(@DirectionChoices) ) ];
-    }
-
-    if ($AutoHelixLoops) {
-        $HelixLoops = int( rand( $MaximumHelixLoops - $MinimumHelixLoops ) ) + $MinimumHelixLoops;
-    }
-
-    if ($AutoDrawSpeed) {
-        $DrawSpeed = int( rand( $MaximumDrawSpeed - $MinimumDrawSpeed ) ) + $MinimumDrawSpeed;
-    }
-
-    for ( my $x = 0 ; $x < $HelixLoops ; $x++ ) {    #Number of loops helix loops
-        my $count = 0;
-        my $Val;
-        foreach my $InVal (@TempArray) {
-            $count++;
-            if ( $count % 2 == 0 ) {                 #This is the Y values
-                given ($Direction) {
-
-                    when ('N') {
-                        $Val = Round( $InVal + ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('NE') {
-                        $Val = Round( $InVal + ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('E') {
-                        push( @Array, $InVal );
-                    };
-                    when ('SE') {
-                        $Val = Round( $InVal - ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('S') {
-                        $Val = Round( $InVal - ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('SW') {
-                        $Val = Round( $InVal - ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('W') {
-                        push( @Array, $InVal );
-                    };
-                    when ('NW') {
-                        $Val = Round( $InVal + ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    default { carp "Error! Invalid Direction: $Direction"; };
-                }
-            } else {
-                given ($Direction) {    #This is the X values
-                    when ('N') {
-                        push( @Array, $InVal );
-                    };
-                    when ('NE') {
-                        $Val = Round( $InVal - ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('E') {
-                        $Val = Round( $InVal - ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('SE') {
-                        $Val = Round( $InVal - ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    }
-                    when ('S') {
-                        push( @Array, $InVal )
-                    };
-                    when ('SW') {
-                        $Val = Round( $InVal + ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('W') {
-                        $Val = Round( $InVal + ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    when ('NW') {
-                        $Val = Round( $InVal + ( $x * $HelixPerInch ) );
-                        push( @Array, $Val );
-                    };
-                    default { carp "Error! Invalid Direction: $Direction"; };
-                }
-            }
-        }
-    }
-    return;
 }
-
 #---------------------------------------------------------------------------
 sub DrawHelix {
-    my $LineColor = ( split( '~', $ForegroundColor ) )[1];
+   my $tcolor = (split('~',$FGColor))[1];
+   unless ($tcolor) {$tcolor = $FGColor};
+   $canvas->createLine (@Array, -fill => $tcolor, -width => $LineWidth);
+   $mw->update();
+}
+#---------------------------------------------------------------------------
+sub Draw_bttn {
+      Log("----- Draw BUTTON -----");
+	  @Array = ();
+	  LogAll();
+	  if ($AutoClear) {Clear_bttn()};
+	  if ($AutoLineWidth) {$LineWidth = int(rand(MAXLINEWIDTH))+1};
+	  if ($AutoDegrees) {$Degrees = @DegreesChoices[int(rand(@DegreesChoices))]};
+	  if ($AutoFGColor) {$FGColor = @FGColorChoices[int(rand(@FGColorChoices))]};
+	  if ($AutoBGColor) {
+	       $BGColor = @BGColorChoices[int(rand(@BGColorChoices))];
+	       $canvas-> configure(-background => (split('~',$BGColor))[1]);
+	   };
+	  unless ($FixedSize) {$Multiplier = int(rand($MaxMultiplier))+5};
+	  unless ($FixedXLocation) { $XOffset = int(rand($Horz_scaleMax))+$Horz_scaleMin};
+	  unless ($FixedYLocation) { $YOffset = int(rand($Vert_scaleMax))+$Vert_scaleMin};
+      #Log(sprintf("Multiplier:%4d XOffset:%4d XStep:%4d YOffset:%4d YStep:%4d",$Multiplier,$XOffset,$XStep,$YOffset,$YStep));
+      #Log(sprintf "Degrees:%2d Points:%d FGColor:%-8s BGColor:%-8s",$Degrees,360/$Degrees,$FGColor,$BGColor);
+      GetHelixData;
+      DrawHelix;
 
-    #If speed is 0 we draw real fast by using a draw with an array
-    #We cannot vary LineColor or LineWidth
-    if ( $DrawSpeed == 0 ) {
-        $Canvas->createLine(
-            @Array,
-            -fill  => $LineColor,
-            -width => $LineWidth,
-            -arrow => 'first'
-        );
-        $MainWindow->update();
-    } else {    #Draw a segment at a time (slow)tk
-        my $a1 = pop(@Array);
-        my $a2 = pop(@Array);
-
-        while ( $#Array > 0 ) {
-            if ($VaryFGColor) {
-                $ForegroundColor = @ForegroundColorChoices[ int( rand(@ForegroundColorChoices) ) ];
-                $LineColor = ( split( '~', $ForegroundColor ) )[1];
-            }
-            my $a3 = pop(@Array);
-            my $a4 = pop(@Array);
-            $Canvas->createLine(
-                $a1, $a2, $a3, $a4,
-                -fill  => $LineColor,
-                -width => $LineWidth
-            );
-            $MainWindow->update();
-            usleep( $DrawSpeed * 100 );
-            say __LINE__ . ' ' . $DrawSpeed;
-            $a1 = $a3;
-            $a2 = $a4;
-        }
-    }
-    return;
+      $mw->update();
 }
 
 #---------------------------------------------------------------------------
-sub DrawButton {
-    Log("----- Draw BUTTON -----");
-    @Array = ();
-    GetDisplayParameters;
-
-    #LogAll();
-
-    if ($AutoClear) { ClearButton }
-    if ($AutoLineWidth) { $LineWidth = int( rand($MAXLINEWIDTH) ) + 1 }
-    if ($AutoDegrees) {
-        $Degrees = @DegreesChoices[ int( rand(@DegreesChoices) ) ];
-    }
-    if ($AutoFGColor) {
-        $ForegroundColor = @ForegroundColorChoices[ int( rand(@ForegroundColorChoices) ) ];
-    }
-
-    if ($AutoBGColor) {
-        $BackgroundColor = @BackgroundColorChoices[ int( rand(@BackgroundColorChoices) ) ];
-        $Canvas->configure( -background => ( split( '~', $BackgroundColor ) )[1] );
-    }
-
-    # $XOffset = int( rand($HorizontalScaleMaximum) ) + $HorizontalScaleMinimum
-    #   unless ($FixedXLocation);
-    # $YOffset = int( rand($VerticleScaleMaximum) ) + $VerticleScaleMinimum
-    #   unless ($FixedYLocation);
-    if ($AutoSize) { $Multiplier = int( rand( $MultiplierPercentage * $CanvasXPixels / 200 ) ) }
-
-    #say __LINE__ . '  ' . $MultiplierPercentage . '   ' . $Multiplier . '   ' . $CanvasXPixels;
-
-    GetHelixData;
-    DrawHelix;
-
-    $MainWindow->update();
-    return;
+sub Clear_bttn {
+   Log("----- Clear BUTTON -----");
+   $canvas->addtag('everything', 'all');
+   $canvas->delete('everything', 'all');
+   ConfigTools;
+  # system('cls');
 }
-
-#---------------------------------------------------------------------------
-sub ClearButton {
-    Log("----- Clear BUTTON -----");
-    $Canvas->addtag( 'everything', 'all' );
-    $Canvas->delete( 'everything', 'all' );
-    ConfigTools;
-    return;
-}
-
 #---------------------------------------------------------------------------
 sub Help {
-    my $HelpMessage = "Move to center\n" . "Presets\n";
-    my $answer      = $MainWindow->messageBox(
-        -title   => "Help $PerlName",
-        -message => $HelpMessage,
-        -type    => 'Ok',
-        -icon    => 'info',
-        -default => 'Ok'
-    );
-    return;
+      my $HelpMessage = "Move to center\n".
+                        "Presets\n";
+      my $answer = $mw->messageBox(
+                -title   => "Help $PerlName",
+                -message => $HelpMessage,
+                -type    => 'Ok',
+                -icon    => 'info',
+                -default => 'Ok'
+       )
 }
-
 #---------------------------------------------------------------------------
 sub PSOut {
-    my $x = localtime;
-    $x =~ s/[ :]//gix;    #remove spaces and : from the date
-    $Canvas->postscript( -file => "$x.ps" );
-    my $answer = $MainWindow->messageBox(
-        -title   => 'File saved as PostScript file',
-        -message => "File name:\n$x.ps",
-        -type    => 'Ok',
-        -icon    => 'info',
-        -default => 'Ok'
-    );
-    return;
+      my $x = localtime;
+      $x =~ s/[ :]//gi; #remove spaces and : from the date
+      $canvas->postscript(-file => "$x.ps");
+      my $answer = $mw->messageBox(
+                -title   => 'File saved as PostScript file',
+                -message => "File name:\n$x.ps",
+                -type    => 'Ok',
+                -icon    => 'info',
+                -default => 'Ok'
+       )
 }
-
+#---------------------------------------------------------------------------
+sub LogAll {
+Log("MaxMultiplier::$MaxMultiplier\nDegrees::$Degrees\nFixedSize::$FixedSize\nFixedXLocation::$FixedXLocation\nFixedYLocation::$FixedYLocation\nAutoFGColor::$AutoFGColor\nVaryFGColor::$VaryFGColor\nAutoBGColor::$AutoBGColor\nAutoDegrees::$AutoDegrees\nAutoLW::$AutoLineWidth \nAutoClear::$AutoClear\nAutoRepeat::$AutoRepeat\nLineWidth::$LineWidth\nmwX::$mwX\nmwY::$mwY\nHorz_scaleMin::$Horz_scaleMin\nHorz_scaleMax::$Horz_scaleMax\nVert_scaleMin::$Vert_scaleMin\nVert_scaleMax::$Vert_scaleMax\nMWGeometry::$MWGeometry");
+}
 #---------------------------------------------------------------------------
 __DATA__
 AliceBlue~#F0F8FF

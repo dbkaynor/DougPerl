@@ -4,7 +4,6 @@ use 5.6.1;
 use strict;
 use warnings;
 use Carp;
-
 #use Win32::OLE('in');
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
@@ -29,7 +28,7 @@ require DynaLoader;
   Commify SimplifySize
   BITS2Dec BIN2Dec OCT2Dec HEX2Dec DEC2Dec
   HEX2Bin HEX2Bits
-  GetTree GetDir
+  GetDOSTree GetDOSDir
   DriveList ParsePath StartUpInfo
 
 );
@@ -173,14 +172,17 @@ sub SortData($$$) {
     if ( $Reverse == TRUE ) {    # Do a reverse sort
         if ( $Case == TRUE ) {
             @$Array = sort { $b cmp $a } @$Array;
-        } else {
+        }
+        else {
             @$Array = sort { uc($b) cmp uc($a) } @$Array;
         }
-    } else {
+    }
+    else {
         if ( $Case == TRUE )     # Do a normal sort
         {
             @$Array = sort { $a cmp $b } @$Array;
-        } else {
+        }
+        else {
             @$Array = sort { uc($a) cmp uc($b) } @$Array;
         }
     }
@@ -220,33 +222,19 @@ sub PadR($$;$) {
 #----------------------------------
 sub AddPathSlash($) {
     my $s = $_[0];
-    if ( $^O eq 'MSWin32' ) {
-        if ( $s =~ /\\$/ ) {
-            return $s;
-        } else {
-            return $s . '\\';
-        }
-    } elsif ( $^O eq 'linux' ) {
-        if ( $s =~ /\/$/ ) {
-            return $s;
-        } else {
-            return $s . '//';
-        }
-
+    if ( $s =~ /\\$/ ) {
+        return $s;
+    }
+    else {
+        return $s . '\\';
     }
 }
 
 #----------------------------------
-#Fix path slashes depending on OS type
 sub FixPathSlash($) {
     my $s = $_[0];
-    if ( $^O eq 'MSWin32' ) {
-        $s =~ s/\//\\/g;      #reverse backwards slashes
-        $s =~ s/\\\\/\\/g;    #remove duplicate slases
-    } elsif ( $^O eq 'linux' ) {
-        $s =~ s/\\/\//g;      #reverse backwards slashes
-        $s =~ s/\/\//\//g;    #remove duplicate slases
-    }
+    $s =~ s/\//\\/g;      #reverse backwards slashes
+    $s =~ s/\\\\/\\/g;    #remove duplicate slases
     return $s;
 }
 
@@ -259,29 +247,29 @@ sub FormatTime($) {
     $Seconds -= $Hours * 3600;
     my $Minutes = int( $Seconds / 60 );
     $Seconds -= $Minutes * 60;
-    return
-      sprintf( '%2d days %2d hours %2d minutes %2d seconds', $Days, $Hours, $Minutes, $Seconds );
+    return sprintf( '%2d days %2d hours %2d minutes %2d seconds',
+        $Days, $Hours, $Minutes, $Seconds );
 }
 
 #----------------------------------
 sub Bool2YesNo($) {
     if    ( $_[0] == TRUE )  { return 'YES' }
     elsif ( $_[0] == FALSE ) { return 'NO ' }
-    else                     { return 'Bool2YesNo error' }
+    else { return 'Bool2YesNo error' }
 }
 
 #----------------------------------
 sub Bool2TrueFalse($) {
     if    ( $_[0] == TRUE )  { return 'TRUE ' }
     elsif ( $_[0] == FALSE ) { return 'FALSE' }
-    else                     { return 'Bool2TrueFalse error' }
+    else { return 'Bool2TrueFalse error' }
 }
 
 #----------------------------------
 sub Bool2OnOff($) {
     if    ( $_[0] == TRUE )  { return 'ON ' }
     elsif ( $_[0] == FALSE ) { return 'OFF' }
-    else                     { return 'Bool2OnOff error' }
+    else { return 'Bool2OnOff error' }
 }
 
 #----------------------------------
@@ -421,7 +409,7 @@ sub HEX2Bin($) {
         elsif (/d/i) { $result .= '1101 ' }
         elsif (/e/i) { $result .= '1110 ' }
         elsif (/f/i) { $result .= '1111 ' }
-        else         { $result .= ' ' }
+        else { $result .= ' ' }
     }
     return Trim($result);
 }
@@ -444,9 +432,9 @@ sub HEX2Bits($) {
     return Trim($result);
 }
 
-#----------------------------------------------------------
-#recursive (used by GetDIRTree)
-sub GetDirs($$$) {
+#----------------------------------
+#recursive (used by GetDOSTree)
+sub GetDOSDirs($$$) {
     my ( $working_dir, $tmparray, $control ) = @_;
 
     #   print "GetDOSDirs>>>$working_dir<<<>>>$$control<<<\n";
@@ -457,36 +445,37 @@ sub GetDirs($$$) {
     while ( readdir DIR ) {
         if ( $$control ne 'run' ) { last }
         foreach $_ ( readdir DIR ) {
-            my $z = $working_dir . '/' . $_;
-            if ( ( -d $z ) && ( $_ ne '..' ) && ( $_ ne '.' ) ) {
-                push @$tmparray, $working_dir . '/' . $_;
-            }
-        }
-    }
+            if ( ( -d $working_dir . '\\' . $_ ) && ( $_ ne '..' ) ) {
+                push @$tmparray, $working_dir . '\\' . $_;
+            }    #if
+        }    #foreach
+    }    #while
     closedir DIR;
-}
+}    #sub
 
 #----------------------------------
 #recursively gets all directories and files under topdir (uses GetDOSDirs)
-sub GetTree($$$;$) {
-    my ( $topdir, $dirsdone, $filesdone, $control ) = @_;
+sub GetDOSTree($$$;$) {
+    my ( $topdir, $DOSdirsdone, $DOSfilesdone, $control ) = @_;
     my $ControlText = 'run';
     unless ($control) { $control = \$ControlText }
 
-    my @DirectoriesTemp = ();    #This is used to store new directories when found
-    push @$dirsdone, $topdir;
-    GetDirs( $topdir, \@DirectoriesTemp, $control );
+    #  print "GetDOSTree>>>$topdir<<<>>>$$control<<<\n";
+    my @DOSDirectoriesTemp =
+      ();    #This is used to store new directories when found
+    push @$DOSdirsdone, $topdir;
+    GetDOSDirs( $topdir, \@DOSDirectoriesTemp, $control );
 
-    while ( $#DirectoriesTemp > 0 ) {
+    while (@DOSDirectoriesTemp) {
         if ( $$control ne 'run' ) { last }
-        $a = pop @DirectoriesTemp;
-        push @$dirsdone, $a;
-        GetDirs( $a, \@DirectoriesTemp, $control );
-    }
+        $a = pop @DOSDirectoriesTemp;
+        push @$DOSdirsdone, $a;
+        GetDOSDirs( $a, \@DOSDirectoriesTemp, $control );
+    }        #while
 
-    @$dirsdone = sort @$dirsdone;
+    @$DOSdirsdone = sort @$DOSdirsdone;
 
-    foreach my $dir (@$dirsdone) {
+    foreach my $dir (@$DOSdirsdone) {
         if ( $$control ne 'run' ) { last }
         unless ( opendir DIR, $dir ) {
             warn "Unable to open $dir $!";
@@ -495,45 +484,42 @@ sub GetTree($$$;$) {
         while ( readdir DIR ) {
             if ( $$control ne 'run' ) { last }
             foreach $_ ( readdir DIR ) {
-                unless ( -d $dir . '/' . $_ ) {
-                    push @$filesdone, $dir . '\\' . $_;
+                unless ( -d $dir . '\\' . $_ ) {
+                    push @$DOSfilesdone, $dir . '\\' . $_;
                 }
             }    #foreach
         }    #while
         closedir DIR;
     }
-    @$filesdone      = sort @$filesdone;
-    @DirectoriesTemp = ();
+    @$DOSfilesdone      = sort @$DOSfilesdone;
+    @DOSDirectoriesTemp = ();
 }
 
 #----------------------------------
-
 #not recursive
-sub GetDir($$;$$) {
-    my ( $topdir, $filesdone, $control, $IncludeOptions ) = @_;
+sub GetDOSDir($$;$$) {
+    my ( $topdir, $DOSfilesdone, $control, $IncludeOptions ) = @_;
     unless ($IncludeOptions) { $IncludeOptions = ALL }
     unless ($control)        { $control        = 'run' }
     unless ( opendir DIR, $topdir ) {
-        warn "ERROR: GetFiles. Unable to open $topdir $!";
-        return "ERROR: GetFiles. Unable to open $topdir $!";
+        warn "ERROR: GetDOSFiles. Unable to open $topdir $!";
+        return "ERROR: GetDOSFiles. Unable to open $topdir $!";
     }
-    unless ( $IncludeOptions eq FILES ) { push @$filesdone, $topdir }
+    unless ( $IncludeOptions eq FILES ) { push @$DOSfilesdone, $topdir }
     while ( readdir DIR ) {
         if ( $control ne 'run' ) { last }
         foreach $_ ( readdir DIR ) {
-            if (
-                   ( $IncludeOptions == ALL )
+            if (   ( $IncludeOptions == ALL )
                 || ( ( $IncludeOptions == DIRS ) && ( -d $topdir . '\\' . $_ ) )
                 || (   ( $IncludeOptions == FILES )
-                    && ( !-d $topdir . '\\' . $_ ) )
-              )
+                    && ( !-d $topdir . '\\' . $_ ) ) )
             {
-                push @$filesdone, $topdir . '\\' . $_;
+                push @$DOSfilesdone, $topdir . '\\' . $_;
             }
         }    #foreach
     }    #while
     closedir DIR;
-    @$filesdone = sort @$filesdone;
+    @$DOSfilesdone = sort @$DOSfilesdone;
 }
 
 #----------------------------------
@@ -549,7 +535,8 @@ sub DriveList($;$) {
     use constant wbemFlagForwardOnly       => 0x20;
 
     my $computer      = ".";
-    my $objWMIService = Win32::OLE->GetObject("winmgmts:\\\\$computer\\root\\CIMV2")
+    my $objWMIService =
+      Win32::OLE->GetObject("winmgmts:\\\\$computer\\root\\CIMV2")
       or die "WMI connection failed.\n";
     my $colItems = $objWMIService->ExecQuery( "SELECT * FROM Win32_LogicalDisk",
         "WQL", wbemFlagReturnImmediately | wbemFlagForwardOnly );
@@ -561,21 +548,24 @@ sub DriveList($;$) {
         unless ( $objItem->{FreeSpace} ) { $objItem->{FreeSpace} = 0 }
         if ( $Option == 0 ) {    # drive letter only
             push( @$DriveList, sprintf $objItem->{Name} );
-        } elsif ( $Option == 1 ) {    # Formated
+        }
+        elsif ( $Option == 1 ) {    # Formated
             my $ts = sprintf "%-2s %-5s %-25s %16s %16s", $objItem->{Name},
               $objItem->{FileSystem}, $objItem->{Description},
               Commify( $objItem->{Size} ), Commify( $objItem->{FreeSpace} );
             push( @$DriveList, $ts );
 
             # print "$ts\n";
-        } elsif ( $Option == 2 ) {    # Raw  seperated by ~ tilde
+        }
+        elsif ( $Option == 2 ) {    # Raw  seperated by ~ tilde
             my $ts = sprintf "%s~%s~%s~%s~%s", $objItem->{Name},
               $objItem->{FileSystem}, $objItem->{Description}, $objItem->{Size},
               $objItem->{FreeSpace};
             push( @$DriveList, $ts );
 
             # print "$ts\n";
-        } else {                      # Unknown option
+        }
+        else {                      # Unknown option
             push( @$DriveList, 'Unknown option at Drivelist: ' . $Option );
         }
     }
@@ -587,8 +577,9 @@ sub ParsePath($) {
     my $Drive        = ( split( '\\\\', $FullPathName ) )[0];
     my $NameExt      = ( split( '\\\\', $FullPathName ) )[-1];
     my $Ext          = ( split( '\.', $NameExt ) )[-1];
-    my $Name         = substr( $NameExt, 0, length($NameExt) - length($Ext) - 1 );
-    my $Path         = substr( $FullPathName, 0, length($FullPathName) - length($NameExt) );
+    my $Name = substr( $NameExt, 0, length($NameExt) - length($Ext) - 1 );
+    my $Path =
+      substr( $FullPathName, 0, length($FullPathName) - length($NameExt) );
     return ( $FullPathName, $Drive, $Path, $NameExt, $Name, $Ext );
 }    #----------------------------------
 
@@ -643,7 +634,7 @@ sub StartUpInfo {
     my @T   = split( '\\\\', $0 );
     my $d   = pop(@T);
 
-    $Res{'StartDIR'} = Trim(`cd`);
+    $Res{'StartDIR'}   = Trim(`cd`);
     $Res{'StartDrive'} = ( split ':', Trim(`cd`) )[0];
 
     # my $TempDir = $ENV{TEMP};
@@ -654,7 +645,7 @@ sub StartUpInfo {
     $Res{'ScriptExt'}  = $z[1];
     my $sp = join '\\', @T;
     unless ($sp) { $sp = '.' }
-    $Res{'ScriptPath'} = $sp;
+    $Res{'ScriptPath'}  = $sp;
     $Res{'ScriptDrive'} = ( split ':', $sp )[0];
 
     return \%Res;
@@ -662,7 +653,7 @@ sub StartUpInfo {
 }
 
 #----------------------------------
-#return TRUE;
+return TRUE;
 
 #----------------------------------
 __END__
@@ -675,9 +666,9 @@ UtilsDBK.pm - Various utilities (mostly string related)
 
 =head2 SYNOPSIS
 
-use UtilsDBK qw(:all);              #Imports all functions
-use UtilsDBK qw(Trim UCArray);      #Imports specific functions
-use UtilsDBK 'Trim';                #Imports a function
+use UtilsDBK qw(:all);				#Imports all functions
+use UtilsDBK qw(Trim UCArray);		#Imports specific functions
+use UtilsDBK 'Trim';				#Imports a function
 
 =head2 DESCRIPTION
 
@@ -785,17 +776,11 @@ Accepts a string of hexadecimal characters and returns a binary string. The inpu
 
 Accepts a string of hexadecimal characters and returns a string of numbers corresponding to the bits that are equal to one. The input string may include spaces, commas and periods which are ignored. LSB is 0.
 
-=head2 GetTree
+=head2 GetDOSTree
 
-Example:
-my $topdir= '/home/ceg/Pictures';
-my @dirsdone = ();
-my @filesdone = ();
-GetTree($topdir,\@dirsdone, \@filesdone);
--------------------
 Accepts a path string, pointers to two arrays and an optional control string. The path string may be absolute or relative. The pointer arrrays are as follows: the first points to a sorted list of directories and the second is a sorted list of files in those directories. Be sure to clear the arrays before calling so as not to get duplicate items.
 
-=head2 GetDir
+=head2 GetDOSDir
 
 Accepts a path string, a pointer to one array and an option. The path string may be absolute or relative. The array will contain a sorted list of directories and\or files in the directory pointed to by the path string. The option may be empty or one of the following: ALL, DIRS or FILES. It defaults to ALL. GetDOSDir is non-recursive. Be sure to clear the arrays before calling so as not to get duplicate items.
 

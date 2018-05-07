@@ -14,7 +14,7 @@ use Tk::LabEntry;
 use Tk::Pane;
 use Tk::JPEG;
 use Tk::PNG;
-use Image::Magick;
+#use Image::Magick;
 use feature ':5.14';    # loads all features available in perl 5.14
 use Time::HiRes qw/usleep/;
 
@@ -747,7 +747,7 @@ sub Help {
 sub PostScriptOut {
     my $x = localtime;
     $x =~ s/[ :]//gi;    #remove spaces and : from the date
-    $Canvas->posts711 CanvasArray : 1215 1216 38 32 cript( -file => "$x.ps" );
+    $Canvas->postscript(-file => "$x.ps");
     my $answer = $MainWindow->messageBox(
         -title   => 'File saved as PostScript file',
         -message => "File name:\n$x.ps",

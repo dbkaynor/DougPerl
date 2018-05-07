@@ -1,13 +1,16 @@
 #!/usr/bin/perl -w
 
-use strict;
+#use strict;
 use warnings;
+use lib '.';
 use UtilsDBK qw(:all);
 use Tk;
 use Tk::BrowseEntry;
 use Tk::Checkbutton;
 use Tk::Pane;
 use feature ':5.10'; # loads all features available in perl 5.10
+
+use experimental qw( switch );
 
 sub ConfigTools;
 sub RandColor;
@@ -19,8 +22,8 @@ sub DrawLines($$);
 sub PSOut;
 sub Help;
 
-use constant MAXCIRCLES => scalar 5;
-use constant MAXLINEWIDTH => scalar 25;
+use constant MAXCIRCLES => scalar 10;
+use constant MAXLINEWIDTH => scalar 20;
 
 my $PerlNamePath = ((split('\.',$0))[0]);
 my $PerlName = ((split('\\\\',$PerlNamePath))[-1]);
@@ -181,8 +184,8 @@ sub BGColorSet {
 $Five_frame->Checkbutton(-text => 'Auto BG color', -variable => \$AutoBGColor) ->pack( -side => 'top' );
 @ColorList = (); #Free the memory
 
-$canvas = $Canvas_frame->Canvas( -cursor=>"crosshair",-background => $BGColor)->pack(-fill => 'both', -expand => '1' );
-
+#$canvas = $Canvas_frame->Canvas( -cursor=>"crosshair",-background => $BGColor)->pack(-fill => 'both', -expand => '1' );
+$canvas = $Canvas_frame->Canvas( -cursor=>"crosshair")->pack(-fill => 'both', -expand => '1' );
 #---------------------------------------------------------------------------
 srand(time ^ $$);
 
@@ -334,61 +337,61 @@ sub Clear_bttn {
 sub Draw_bttn {
   do {
       Log("----- Draw BUTTON -----");
-	  @A0 = ();
-	  @A1 = ();
-	  @A2 = ();
-	  @A3 = ();
-	  @A4 = ();
-	  @A5 = ();
-	  LogAll();
-	  if ($AutoClear) {Clear_bttn()};
-	  if ($AutoLineWidth ) {$LineWidth = int(rand(MAXLINEWIDTH))+1};
-	  if ($Autocircles) {$Circles = int(rand(MAXCIRCLES))+2};
-	  if ($AutoDegrees) {$Degrees = @DegreesChoices[int(rand(@DegreesChoices))]};
-	  if ($AutoFGColor) { $FGColor = @FGColorChoices[int(rand(@FGColorChoices))]};
-	  if ($AutoBGColor) {
-	       $BGColor = @BGColorChoices[int(rand(@BGColorChoices))];
-	       $canvas-> configure(-background => (split('~',$BGColor))[1]);
-	   };
+      @A0 = ();
+      @A1 = ();
+      @A2 = ();
+      @A3 = ();
+      @A4 = ();
+      @A5 = ();
+      LogAll();
+      if ($AutoClear) {Clear_bttn()};
+      if ($AutoLineWidth ) {$LineWidth = int(rand(MAXLINEWIDTH))+1};
+      if ($Autocircles) {$Circles = int(rand(MAXCIRCLES))+2};
+      if ($AutoDegrees) {$Degrees = @DegreesChoices[int(rand(@DegreesChoices))]};
+      if ($AutoFGColor) { $FGColor = @FGColorChoices[int(rand(@FGColorChoices))]};
+      if ($AutoBGColor) {
+           $BGColor = @BGColorChoices[int(rand(@BGColorChoices))];
+           $canvas-> configure(-background => (split('~',$BGColor))[1]);
+       };
 
-	  $Shift = -1;
+      $Shift = -1;
 
-	  Log(sprintf "CircleNumber:%2d Degrees:%2d Points:%d Shift:%3d FGColor:%-8s BGColor:%-8s",$Circles,$Degrees,360/$Degrees,$Shift,$FGColor,$BGColor);
+      Log(sprintf "CircleNumber:%2d Degrees:%2d Points:%d Shift:%3d FGColor:%-8s BGColor:%-8s",$Circles,$Degrees,360/$Degrees,$Shift,$FGColor,$BGColor);
 
-	  for(my $x = 0; $x <= ($Circles -1); $x++) {
-	      unless ($FixedSize) {$Multiplier = int(rand($MaxMultiplier))+5};
-	      unless ($FixedXLocation) { $XOffset = int(rand($Horz_scaleMax))+$Horz_scaleMin};
-	      unless ($FixedYLocation) { $YOffset = int(rand($Vert_scaleMax))+$Vert_scaleMin};
+      for(my $x = 0; $x <= ($Circles -1); $x++) {
+          unless ($FixedSize) {$Multiplier = int(rand($MaxMultiplier))+5};
+          unless ($FixedXLocation) { $XOffset = int(rand($Horz_scaleMax))+$Horz_scaleMin};
+          unless ($FixedYLocation) { $YOffset = int(rand($Vert_scaleMax))+$Vert_scaleMin};
 
-	      given ($x) {
-	        when (0) { GetCircleData(\@A0); DrawCircle(\@A0) }
-	        when (1) { GetCircleData(\@A1); DoTheShift(\@A1); DrawCircle(\@A1) }
-	        when (2) { GetCircleData(\@A2); DoTheShift(\@A2); DrawCircle(\@A2) }
-	        when (3) { GetCircleData(\@A3); DoTheShift(\@A3); DrawCircle(\@A3) }
-	        when (4) { GetCircleData(\@A4); DoTheShift(\@A4); DrawCircle(\@A4) }
-	        when (5) { GetCircleData(\@A5); DoTheShift(\@A5); DrawCircle(\@A5) }
-	        default  { Log("Not sure how we got here. else  $x\n") }
-	      }
-	       if (@A0 > 0) {
-    	       if (@A0 == @A1) {DrawLines(\@A0,\@A1)}
-    	       if (@A1 == @A2) {DrawLines(\@A1,\@A2)}
-    	       if (@A2 == @A3) {DrawLines(\@A2,\@A3)}
-    	       if (@A3 == @A4) {DrawLines(\@A3,\@A4)}
-    	       if (@A4 == @A5) {DrawLines(\@A4,\@A5)}
-	    }
-	      Log(sprintf("Circle: %d Multiplier:%4d XOffset:%4d YOffset:%4d Shift:%3d",
-	      ,$x+1,$Multiplier,$XOffset,$YOffset,$Shift));
-	  }
+          given ($x) {
+            when (0) { GetCircleData(\@A0); DrawCircle(\@A0) }
+            when (1) { GetCircleData(\@A1); DoTheShift(\@A1); DrawCircle(\@A1) }
+            when (2) { GetCircleData(\@A2); DoTheShift(\@A2); DrawCircle(\@A2) }
+            when (3) { GetCircleData(\@A3); DoTheShift(\@A3); DrawCircle(\@A3) }
+            when (4) { GetCircleData(\@A4); DoTheShift(\@A4); DrawCircle(\@A4) }
+            when (5) { GetCircleData(\@A5); DoTheShift(\@A5); DrawCircle(\@A5) }
+            default  { Log("Not sure how we got here. else  $x\n") }
+          }
+           if (@A0 > 0) {
+               if (@A0 == @A1) {DrawLines(\@A0,\@A1)}
+               if (@A1 == @A2) {DrawLines(\@A1,\@A2)}
+               if (@A2 == @A3) {DrawLines(\@A2,\@A3)}
+               if (@A3 == @A4) {DrawLines(\@A3,\@A4)}
+               if (@A4 == @A5) {DrawLines(\@A4,\@A5)}
+        }
+          Log(sprintf("Circle: %d Multiplier:%4d XOffset:%4d YOffset:%4d Shift:%3d",
+          ,$x+1,$Multiplier,$XOffset,$YOffset,$Shift));
+      }
       $mw->update();
-	  my $num = $AutoRepeat;
-	  Log(sprintf ">>>>%d  %d",$AutoRepeat,$num );
-	   while($num > 0) {
+      my $num = $AutoRepeat;
+      Log(sprintf ">>>>%d  %d",$AutoRepeat,$num );
+       while($num > 0) {
            if ($AutoRepeat == 0) {last};
-	       $num--;
-	       sleep(1);
+           $num--;
+           sleep(1);
            $mw->update();
-	   }
-	} until $AutoRepeat == 0;
+       }
+    } until $AutoRepeat == 0;
 }
 #---------------------------------------------------------------------------
 sub Help {
@@ -422,7 +425,7 @@ Log("MaxMultiplier::$MaxMultiplier\nCircles::$Circles\nDegrees::$Degrees\nFixedS
 }
 #---------------------------------------------------------------------------
 __DATA__
-AliceBlue~#F0F8FF
+
 AntiqueWhite~#FAEBD7
 Aqua~#00FFFF
 Aquamarine~#7FFFD4
